@@ -1,0 +1,6 @@
+{
+  "name": "EduVerify – National Student Data Management & Verification System",
+  "description": "An integrated APAAR-based platform enabling secure student data management, real-time enrolment monitoring, duplicate detection, and verifiable academic credentials across AICTE-approved institutions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
