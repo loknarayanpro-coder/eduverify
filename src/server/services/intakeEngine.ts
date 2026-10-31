@@ -17,6 +17,7 @@ export interface IntakeAnalysis {
   isExceeded: boolean;
   status: 'COMPLIANT' | 'NEAR_CAPACITY' | 'EXCEEDED';
   supernumeraryViolation: boolean;
+  violations: string[];
 }
 
 export function analyzeInstitutionIntake(inst: Institution): IntakeAnalysis {
@@ -38,8 +39,22 @@ export function analyzeInstitutionIntake(inst: Institution): IntakeAnalysis {
   const isExceeded = excess > 0;
   const supernumeraryViolation = supernumeraryCount > inst.supernumeraryLimit;
 
-  let status: 'COMPLIANT' | 'NEAR_CAPACITY' | 'EXCEEDED' = 'COMPLIANT';
+  const violations: string[] = [];
   if (isExceeded) {
+    violations.push(`Regular enrolment (${regularCount}) exceeds approved intake (${approved}) by ${excess} seats.`);
+  }
+  if (supernumeraryViolation) {
+    violations.push(`Supernumerary admissions (${supernumeraryCount}) exceed approved ceiling (${inst.supernumeraryLimit}).`);
+  }
+
+  // Statutory AICTE quota checks: NRI max 5% of approved intake
+  const nriCap = Math.max(1, Math.round(approved * 0.05));
+  if (nriCount > nriCap) {
+    violations.push(`NRI enrolment (${nriCount}) exceeds recommended 5% AICTE ceiling (${nriCap} seats).`);
+  }
+
+  let status: 'COMPLIANT' | 'NEAR_CAPACITY' | 'EXCEEDED' = 'COMPLIANT';
+  if (isExceeded || supernumeraryViolation) {
     status = 'EXCEEDED';
   } else if (utilization >= 95) {
     status = 'NEAR_CAPACITY';
@@ -61,6 +76,7 @@ export function analyzeInstitutionIntake(inst: Institution): IntakeAnalysis {
     isExceeded,
     status,
     supernumeraryViolation,
+    violations,
   };
 }
 

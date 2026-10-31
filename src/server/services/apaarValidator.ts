@@ -63,16 +63,34 @@ export function generateVerhoeffCheckDigit(numStr: string): number {
 
 export function maskApaarId(apaarId?: string): string {
   if (!apaarId) return '•••• •••• ••••';
-  const clean = apaarId.replace(/\s+/g, '');
+  const clean = String(apaarId).replace(/[\s\-]+/g, '');
   if (clean.length < 4) return '•••• •••• ••••';
   return `•••• •••• ${clean.slice(-4)}`;
 }
 
 export function formatApaarDisplay(apaarId?: string): string {
   if (!apaarId) return '';
-  const clean = apaarId.replace(/\s+/g, '');
+  const clean = String(apaarId).replace(/[\s\-]+/g, '');
   if (clean.length !== 12) return clean;
   return `${clean.slice(0, 4)} ${clean.slice(4, 8)} ${clean.slice(8, 12)}`;
+}
+
+/**
+ * Generates a valid 12-digit APAAR ID guaranteed to satisfy the Verhoeff algorithm.
+ * Useful for Sandbox registration, automated testing, and demoing.
+ */
+export function generateSampleApaar(seed?: string): string {
+  let base: string;
+  if (seed && /^\d{11}$/.test(seed)) {
+    base = seed;
+  } else {
+    // Generate 11 random digits with non-zero initial digit
+    const firstDigit = Math.floor(1 + Math.random() * 9);
+    const rest = Array.from({ length: 10 }, () => Math.floor(Math.random() * 10)).join('');
+    base = `${firstDigit}${rest}`;
+  }
+  const checkDigit = generateVerhoeffCheckDigit(base);
+  return `${base}${checkDigit}`;
 }
 
 export interface ValidationResult {
@@ -81,6 +99,9 @@ export interface ValidationResult {
   code: string;
   errors: string[];
   isChecksumValid: boolean;
+  cleanApaar?: string;
+  maskedApaar?: string;
+  formattedApaar?: string;
   adapterInfo: {
     adapter: 'SANDBOX_ADAPTER' | 'OFFICIAL_GATEWAY_INTERFACE';
     timestamp: string;
@@ -88,11 +109,13 @@ export interface ValidationResult {
   };
 }
 
-export function validateApaarStructure(apaarId: string): ValidationResult {
+export function validateApaarStructure(apaarId: unknown): ValidationResult {
   const timestamp = new Date().toISOString();
   const errors: string[] = [];
 
-  if (!apaarId || apaarId.trim() === '') {
+  const raw = String(apaarId ?? '').trim();
+
+  if (!raw) {
     return {
       isValid: false,
       status: 'INVALID',
@@ -103,7 +126,7 @@ export function validateApaarStructure(apaarId: string): ValidationResult {
     };
   }
 
-  const clean = apaarId.replace(/\s+/g, '');
+  const clean = raw.replace(/[\s\-]+/g, '');
 
   if (!/^\d+$/.test(clean)) {
     return {
@@ -112,6 +135,8 @@ export function validateApaarStructure(apaarId: string): ValidationResult {
       code: 'ERR_APAAR_NON_NUMERIC',
       errors: ['APAAR ID must contain numeric digits only.'],
       isChecksumValid: false,
+      cleanApaar: clean,
+      maskedApaar: maskApaarId(clean),
       adapterInfo: { adapter: 'SANDBOX_ADAPTER', timestamp, verifiedLocally: true },
     };
   }
@@ -123,6 +148,8 @@ export function validateApaarStructure(apaarId: string): ValidationResult {
       code: 'ERR_APAAR_LENGTH',
       errors: [`APAAR ID must be exactly 12 digits (received ${clean.length} digits).`],
       isChecksumValid: false,
+      cleanApaar: clean,
+      maskedApaar: maskApaarId(clean),
       adapterInfo: { adapter: 'SANDBOX_ADAPTER', timestamp, verifiedLocally: true },
     };
   }
@@ -135,6 +162,8 @@ export function validateApaarStructure(apaarId: string): ValidationResult {
       code: 'ERR_APAAR_REPETITIVE',
       errors: ['APAAR ID cannot consist of 12 repeating identical digits.'],
       isChecksumValid: false,
+      cleanApaar: clean,
+      maskedApaar: maskApaarId(clean),
       adapterInfo: { adapter: 'SANDBOX_ADAPTER', timestamp, verifiedLocally: true },
     };
   }
@@ -151,6 +180,9 @@ export function validateApaarStructure(apaarId: string): ValidationResult {
     code: isChecksumOk ? 'SUCCESS_VALIDATED' : 'ERR_CHECKSUM_MISMATCH',
     errors,
     isChecksumValid: isChecksumOk,
+    cleanApaar: clean,
+    maskedApaar: maskApaarId(clean),
+    formattedApaar: formatApaarDisplay(clean),
     adapterInfo: {
       adapter: 'SANDBOX_ADAPTER',
       timestamp,

@@ -610,8 +610,8 @@
       "admissionDate": "2024-07-15",
       "issueDate": "2024-07-16",
       "status": "ACTIVE",
-      "verificationCount": 8,
-      "lastVerifiedAt": "2026-10-30T17:23:03.500Z"
+      "verificationCount": 7,
+      "lastVerifiedAt": "2024-09-15T14:32:00Z"
     },
     {
       "id": "cred-002",
@@ -632,17 +632,6 @@
     }
   ],
   "verificationLogs": [
-    {
-      "id": "vlog-1793380983500",
-      "credentialId": "EDUVERIFY-2024-COEP-001",
-      "studentId": "COEP-2024-CSE-001",
-      "studentName": "Aarav Sharma",
-      "verifierOrg": "Public Authorized Verifier",
-      "verifierName": "Screening Agent",
-      "purpose": "Academic Record Authenticity Verification",
-      "verifiedAt": "2026-10-30T17:23:03.500Z",
-      "outcome": "SUCCESS"
-    },
     {
       "id": "vlog-001",
       "credentialId": "EDUVERIFY-2024-COEP-001",

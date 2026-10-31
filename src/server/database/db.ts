@@ -11,12 +11,13 @@ import {
   AuditLog,
   Notification,
   BulkUploadRecord,
-} from '../types.js';
+} from '../types.ts';
 import {
   validateApaarStructure,
   maskApaarId,
   generateVerhoeffCheckDigit,
 } from '../services/apaarValidator.ts';
+import { fileURLToPath } from 'url';
 
 interface DatabaseSchema {
   users: User[];
@@ -31,7 +32,20 @@ interface DatabaseSchema {
   bulkUploads: BulkUploadRecord[];
 }
 
-const DB_FILE_PATH = path.resolve(process.cwd(), 'eduverify_data.json');
+function getDbFilePath(): string {
+  const cwdPath = path.resolve(process.cwd(), 'eduverify_data.json');
+  if (fs.existsSync(cwdPath)) return cwdPath;
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const projRoot = path.resolve(path.dirname(__filename), '../../../eduverify_data.json');
+    if (fs.existsSync(projRoot)) return projRoot;
+  } catch {
+    // fallback
+  }
+  return cwdPath;
+}
+
+const DB_FILE_PATH = getDbFilePath();
 
 // Helper to generate a valid 12-digit APAAR with correct Verhoeff check digit
 function makeValidApaar(elevenDigits: string): string {
@@ -927,6 +941,32 @@ class EduVerifyDatabase {
     return inst;
   }
 
+  public deleteInstitution(id: string): boolean {
+    const idx = this.data.institutions.findIndex((i) => i.id === id);
+    if (idx === -1) return false;
+    this.data.institutions.splice(idx, 1);
+    this.saveData(this.data);
+    return true;
+  }
+
+  // --- PROGRAMMES ---
+  public getProgrammes(institutionId?: string): Programme[] {
+    if (institutionId) {
+      return this.data.programmes.filter((p) => p.institutionId === institutionId);
+    }
+    return this.data.programmes;
+  }
+
+  public getProgrammeById(id: string): Programme | undefined {
+    return this.data.programmes.find((p) => p.id === id);
+  }
+
+  public addProgramme(prog: Programme): Programme {
+    this.data.programmes.push(prog);
+    this.saveData(this.data);
+    return prog;
+  }
+
   // --- STUDENTS ---
   public getStudents(): Student[] {
     return this.data.students;
@@ -934,6 +974,23 @@ class EduVerifyDatabase {
 
   public getStudentById(id: string): Student | undefined {
     return this.data.students.find((s) => s.id === id || s.studentId === id);
+  }
+
+  public getStudentByApaarId(apaarId: string): Student | undefined {
+    const clean = apaarId.replace(/[\s\-]+/g, '');
+    if (!clean) return undefined;
+    return this.data.students.find((s) => s.apaarId.replace(/[\s\-]+/g, '') === clean);
+  }
+
+  public recalculateInstitutionEnrolments(instId: string): void {
+    const inst = this.data.institutions.find((i) => i.id === instId);
+    if (!inst) return;
+    const active = this.data.students.filter((s) => s.institutionId === instId && s.currentStatus === 'ACTIVE');
+    inst.currentEnrolment = active.filter((s) => s.quotaType === 'REGULAR').length;
+    inst.supernumeraryEnrolment = active.filter((s) => s.quotaType !== 'REGULAR').length;
+    inst.nriEnrolment = active.filter((s) => s.quotaType === 'NRI').length;
+    inst.ociEnrolment = active.filter((s) => s.quotaType === 'OCI').length;
+    inst.foreignEnrolment = active.filter((s) => s.quotaType === 'FOREIGN_NATIONAL').length;
   }
 
   public addStudent(student: Student): Student {
@@ -955,21 +1012,44 @@ class EduVerifyDatabase {
   }
 
   public updateStudent(id: string, updates: Partial<Student>): Student | undefined {
-    const idx = this.data.students.findIndex((s) => s.id === id);
+    const idx = this.data.students.findIndex((s) => s.id === id || s.studentId === id);
     if (idx === -1) return undefined;
-    this.data.students[idx] = { ...this.data.students[idx], ...updates };
+    const old = this.data.students[idx];
+    const updated = { ...old, ...updates };
+    this.data.students[idx] = updated;
+
+    if (updates.quotaType || updates.currentStatus || updates.institutionId) {
+      this.recalculateInstitutionEnrolments(updated.institutionId);
+      if (old.institutionId !== updated.institutionId) {
+        this.recalculateInstitutionEnrolments(old.institutionId);
+      }
+    }
+
     this.saveData(this.data);
-    return this.data.students[idx];
+    return updated;
   }
 
   public deleteStudent(id: string): boolean {
-    const idx = this.data.students.findIndex((s) => s.id === id);
+    const idx = this.data.students.findIndex((s) => s.id === id || s.studentId === id);
     if (idx === -1) return false;
     const [deleted] = this.data.students.splice(idx, 1);
-    const inst = this.data.institutions.find((i) => i.id === deleted.institutionId);
-    if (inst && deleted.quotaType === 'REGULAR' && inst.currentEnrolment > 0) {
-      inst.currentEnrolment -= 1;
+    
+    this.recalculateInstitutionEnrolments(deleted.institutionId);
+
+    // Revoke corresponding credential if exists
+    const cred = this.data.credentials.find((c) => c.studentId === deleted.studentId);
+    if (cred) {
+      cred.status = 'REVOKED';
     }
+
+    // Auto-resolve any active duplicate alerts involving this student
+    this.data.duplicateAlerts.forEach((a) => {
+      if ((a.studentIdA === deleted.studentId || a.studentIdB === deleted.studentId) && a.status === 'NEW') {
+        a.status = 'RESOLVED';
+        a.resolutionNotes = `Auto-resolved: student ${deleted.studentId} was deleted from registry.`;
+      }
+    });
+
     this.saveData(this.data);
     return true;
   }
@@ -980,6 +1060,17 @@ class EduVerifyDatabase {
   }
 
   public addDuplicateAlert(alert: DuplicateAlert): DuplicateAlert {
+    // Avoid creating duplicate alert for identical student pair
+    const exists = this.data.duplicateAlerts.find(
+      (a) =>
+        ((a.studentIdA === alert.studentIdA && a.studentIdB === alert.studentIdB) ||
+         (a.studentIdA === alert.studentIdB && a.studentIdB === alert.studentIdA)) &&
+        a.status !== 'RESOLVED' &&
+        a.status !== 'FALSE_POSITIVE'
+    );
+    if (exists) {
+      return exists;
+    }
     this.data.duplicateAlerts.unshift(alert);
     this.saveData(this.data);
     return alert;
@@ -999,7 +1090,15 @@ class EduVerifyDatabase {
   }
 
   public getCredentialByToken(token: string): VerificationCredential | undefined {
-    return this.data.credentials.find((c) => c.token === token || c.credentialId === token || c.studentId === token);
+    const cleanToken = token.trim();
+    const cleanNum = cleanToken.replace(/[\s\-]+/g, '');
+    return this.data.credentials.find(
+      (c) =>
+        c.token === cleanToken ||
+        c.credentialId === cleanToken ||
+        c.studentId === cleanToken ||
+        (cleanNum.length === 12 && c.maskedApaar.replace(/[\s\•]+/g, '') === cleanNum.slice(-4))
+    );
   }
 
   public getCredentialByStudentId(studentId: string): VerificationCredential | undefined {

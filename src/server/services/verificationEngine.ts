@@ -66,17 +66,48 @@ export function verifyCredentialByToken(
   verifierName: string = 'Authorized Agent',
   purpose: string = 'Academic Authenticity Check'
 ): VerificationLookupResult {
-  const cred = db.getCredentialByToken(tokenOrId);
-
-  if (!cred) {
+  const clean = (tokenOrId || '').trim();
+  if (!clean) {
     return {
       verified: false,
-      message: 'Credential record not found or digital signature is invalid.',
+      message: 'Token or credential identifier is required.',
+    };
+  }
+
+  let cred = db.getCredentialByToken(clean);
+
+  // If not found as direct credential, check if it matches a student ID or APAAR ID directly
+  if (!cred) {
+    const student = db.getStudentById(clean) || db.getStudentByApaarId(clean);
+    if (student) {
+      cred = issueStudentCredential(student);
+    }
+  }
+
+  const now = new Date().toISOString();
+
+  if (!cred) {
+    // Record failed attempt for security audit trail
+    const failedLog: VerificationLog = {
+      id: `vlog-${Date.now()}`,
+      credentialId: clean.slice(0, 30),
+      studentId: 'UNKNOWN',
+      studentName: 'Unknown Subject',
+      verifierOrg,
+      verifierName,
+      purpose,
+      verifiedAt: now,
+      outcome: 'INVALID_TOKEN',
+    };
+    db.recordVerification(failedLog);
+
+    return {
+      verified: false,
+      message: 'Credential record not found or digital signature is invalid. Ensure the Student ID, Token, or APAAR ID is correct.',
     };
   }
 
   const inst = db.getInstitutionById(cred.institutionId);
-  const now = new Date().toISOString();
 
   // Record verification log
   const log: VerificationLog = {

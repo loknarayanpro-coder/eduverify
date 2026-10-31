@@ -1,10 +1,10 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { db } from './database/db.ts';
-import { validateApaarStructure, maskApaarId } from './services/apaarValidator.ts';
+import { validateApaarStructure, maskApaarId, generateSampleApaar } from './services/apaarValidator.ts';
 import { scanForDuplicates, registerDuplicateAlertIfFound } from './services/duplicateEngine.ts';
 import { analyzeInstitutionIntake, getAllIntakeAnalyses } from './services/intakeEngine.ts';
 import { issueStudentCredential, verifyCredentialByToken } from './services/verificationEngine.ts';
-import { Student, UserRole, AdmissionCategory, QuotaType } from './types.ts';
+import { Student, UserRole, AdmissionCategory, QuotaType, Programme } from './types.ts';
 
 export const apiApp = express();
 
@@ -18,6 +18,38 @@ apiApp.use((req: Request, _res: Response, next: NextFunction) => {
     console.log(`[API ${req.method}] ${req.path}`);
   }
   next();
+});
+
+/* ==========================================================================
+   SYSTEM HEALTHCHECK & METRICS
+   ========================================================================== */
+
+apiApp.get('/api/health', (_req: Request, res: Response) => {
+  try {
+    const insts = db.getInstitutions();
+    const students = db.getStudents();
+    const creds = db.getCredentials();
+    const alerts = db.getDuplicateAlerts();
+    const logs = db.getAuditLogs();
+
+    res.json({
+      success: true,
+      status: 'HEALTHY',
+      service: 'EduVerify National APAAR Platform Backend',
+      version: '1.0.0',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: Math.floor(process.uptime()),
+      database: {
+        institutions: insts.length,
+        students: students.length,
+        credentials: creds.length,
+        duplicateAlerts: alerts.length,
+        auditLogs: logs.length,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message || 'Healthcheck failure' });
+  }
 });
 
 // Helper for simulated JWT auth
@@ -262,6 +294,98 @@ apiApp.patch('/api/institutions/:id/status', (req: Request, res: Response) => {
   res.json({ success: true, institution: updated });
 });
 
+apiApp.put('/api/institutions/:id', (req: Request, res: Response) => {
+  const updates = { ...req.body };
+  if (updates.approvedIntake !== undefined) {
+    updates.approvedIntake = Number(updates.approvedIntake);
+    if (isNaN(updates.approvedIntake) || updates.approvedIntake <= 0) {
+      return res.status(400).json({ success: false, message: 'Approved intake must be a positive number.' });
+    }
+  }
+  if (updates.supernumeraryLimit !== undefined) {
+    updates.supernumeraryLimit = Number(updates.supernumeraryLimit);
+  }
+
+  const updated = db.updateInstitution(req.params.id, updates);
+  if (!updated) {
+    return res.status(404).json({ success: false, message: 'Institution not found' });
+  }
+
+  db.addAuditLog({
+    userId: 'usr-aicte-admin',
+    userName: 'Dr. Anil Sahasrabudhe',
+    userRole: 'SUPER_ADMIN',
+    action: 'INSTITUTION_UPDATED',
+    entityType: 'Institution',
+    entityId: updated.id,
+    details: `Updated institution details for ${updated.name}`,
+    timestamp: new Date().toISOString(),
+  });
+
+  res.json({ success: true, institution: updated });
+});
+
+apiApp.delete('/api/institutions/:id', (req: Request, res: Response) => {
+  const user = getAuthUser(req);
+  const success = db.deleteInstitution(req.params.id);
+  if (!success) {
+    return res.status(404).json({ success: false, message: 'Institution not found' });
+  }
+
+  db.addAuditLog({
+    userId: user?.id || 'usr-aicte-admin',
+    userName: user?.fullName || 'Super Admin',
+    userRole: 'SUPER_ADMIN',
+    action: 'INSTITUTION_DELETED',
+    entityType: 'Institution',
+    entityId: req.params.id,
+    details: `Removed institution record ${req.params.id}`,
+    timestamp: new Date().toISOString(),
+  });
+
+  res.json({ success: true, message: 'Institution deleted successfully' });
+});
+
+/* ==========================================================================
+   PROGRAMMES & COURSES API
+   ========================================================================== */
+
+apiApp.get('/api/programmes', (req: Request, res: Response) => {
+  const { institutionId } = req.query;
+  const list = db.getProgrammes(institutionId as string);
+  res.json({ success: true, total: list.length, programmes: list });
+});
+
+apiApp.get('/api/programmes/:id', (req: Request, res: Response) => {
+  const prog = db.getProgrammeById(req.params.id);
+  if (!prog) {
+    return res.status(404).json({ success: false, message: 'Programme not found' });
+  }
+  res.json({ success: true, programme: prog });
+});
+
+apiApp.post('/api/programmes', (req: Request, res: Response) => {
+  const { institutionId, name, code, degreeLevel, approvedIntake, supernumeraryQuota, durationYears } = req.body;
+  if (!institutionId || !name || !approvedIntake) {
+    return res.status(400).json({ success: false, message: 'institutionId, name, and approvedIntake are required.' });
+  }
+
+  const prog: Programme = {
+    id: `prog-${Date.now()}`,
+    institutionId,
+    name,
+    code: code || name.replace(/[^A-Za-z0-9]/g, '').slice(0, 8).toUpperCase(),
+    degreeLevel: degreeLevel || 'UG',
+    approvedIntake: Number(approvedIntake),
+    currentEnrolment: 0,
+    supernumeraryQuota: Number(supernumeraryQuota) || Math.round(Number(approvedIntake) * 0.15),
+    durationYears: Number(durationYears) || 4,
+  };
+
+  db.addProgramme(prog);
+  res.status(201).json({ success: true, programme: prog });
+});
+
 /* ==========================================================================
    STUDENTS API & ENROLMENT
    ========================================================================== */
@@ -317,15 +441,27 @@ apiApp.post('/api/students', (req: Request, res: Response) => {
     return res.status(400).json({ success: false, message: 'Full Name, Student ID, and Institution are required.' });
   }
 
+  const cleanStudentId = String(data.studentId).trim();
+  const existing = db.getStudentById(cleanStudentId);
+  if (existing && existing.institutionId === data.institutionId) {
+    return res.status(409).json({
+      success: false,
+      message: `A student with ID "${cleanStudentId}" already exists at this institution (${existing.fullName}).`,
+    });
+  }
+
   // 1. APAAR Validation
   let apaarStatus: Student['apaarStatus'] = 'VALID';
   let isChecksumOk = false;
+  let validationErrors: string[] = [];
   if (data.apaarId) {
     const valResult = validateApaarStructure(data.apaarId);
     isChecksumOk = valResult.isChecksumValid;
     apaarStatus = valResult.status;
+    validationErrors = valResult.errors;
   } else {
     apaarStatus = 'INVALID';
+    validationErrors = ['APAAR ID not provided at admission'];
   }
 
   const inst = db.getInstitutionById(data.institutionId);
@@ -333,15 +469,15 @@ apiApp.post('/api/students', (req: Request, res: Response) => {
 
   const newStudent: Student = {
     id: `stu-${Date.now()}`,
-    studentId: data.studentId.trim(),
-    apaarId: data.apaarId ? data.apaarId.replace(/\s+/g, '') : '',
+    studentId: cleanStudentId,
+    apaarId: data.apaarId ? String(data.apaarId).replace(/[\s\-]+/g, '') : '',
     maskedApaarId: maskApaarId(data.apaarId),
-    fullName: data.fullName.trim(),
+    fullName: String(data.fullName).trim(),
     fatherName: data.fatherName || '',
     motherName: data.motherName || '',
     dateOfBirth: data.dateOfBirth || '2005-01-01',
     gender: data.gender || 'MALE',
-    email: data.email || `${data.studentId.toLowerCase()}@student.eduverify.gov.in`,
+    email: data.email || `${cleanStudentId.toLowerCase()}@student.eduverify.gov.in`,
     mobile: data.mobile || '+91-9000000000',
     address: data.address || '',
     state: data.state || (inst ? inst.state : 'Maharashtra'),
@@ -404,6 +540,7 @@ apiApp.post('/api/students', (req: Request, res: Response) => {
     student: newStudent,
     credential,
     duplicateAlert: dupAlert,
+    validationErrors,
   });
 });
 
@@ -469,9 +606,26 @@ apiApp.post('/api/apaar/validate', (req: Request, res: Response) => {
   res.json({ success: true, result });
 });
 
+apiApp.post('/api/apaar/generate-sample', (req: Request, res: Response) => {
+  const { seed } = req.body || {};
+  const validApaar = generateSampleApaar(seed);
+  const result = validateApaarStructure(validApaar);
+  res.json({
+    success: true,
+    apaarId: validApaar,
+    result,
+  });
+});
+
 /* ==========================================================================
    DUPLICATE DETECTION & RESOLUTION
    ========================================================================== */
+
+apiApp.post('/api/duplicates/scan', (req: Request, res: Response) => {
+  const candidate = req.body;
+  const scan = scanForDuplicates(candidate, candidate.id);
+  res.json({ success: true, scan });
+});
 
 apiApp.get('/api/duplicates', (req: Request, res: Response) => {
   const alerts = db.getDuplicateAlerts();
@@ -760,6 +914,112 @@ apiApp.get('/api/analytics/admin', (_req: Request, res: Response) => {
    REPORTS & AUDIT LOGS
    ========================================================================== */
 
+apiApp.get('/api/reports/students/csv', (_req: Request, res: Response) => {
+  const students = db.getStudents();
+  const headers = [
+    'Student ID',
+    'Full Name',
+    'APAAR ID (Masked)',
+    'Date of Birth',
+    'Gender',
+    'Email',
+    'Mobile',
+    'Category',
+    'Quota Type',
+    'Institution',
+    'Programme',
+    'Academic Year',
+    'APAAR Status',
+    'Status',
+  ];
+  const rows = students.map((s) => [
+    `"${s.studentId}"`,
+    `"${s.fullName}"`,
+    `"${s.maskedApaarId}"`,
+    `"${s.dateOfBirth}"`,
+    `"${s.gender}"`,
+    `"${s.email}"`,
+    `"${s.mobile}"`,
+    `"${s.category}"`,
+    `"${s.quotaType}"`,
+    `"${s.institutionName}"`,
+    `"${s.programmeName}"`,
+    `"${s.academicYear}"`,
+    `"${s.apaarStatus}"`,
+    `"${s.currentStatus}"`,
+  ]);
+  const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="eduverify_students_report.csv"');
+  res.send(csv);
+});
+
+apiApp.get('/api/reports/intake/csv', (_req: Request, res: Response) => {
+  const analyses = getAllIntakeAnalyses();
+  const headers = [
+    'Institution ID',
+    'Institution Name',
+    'Approved Intake',
+    'Regular Enrolment',
+    'Supernumerary Limit',
+    'Supernumerary Enrolment',
+    'NRI Enrolment',
+    'Foreign Enrolment',
+    'Utilization %',
+    'Excess Seats',
+    'Compliance Status',
+  ];
+  const rows = analyses.map((a) => [
+    `"${a.institutionId}"`,
+    `"${a.institutionName}"`,
+    a.approvedIntake,
+    a.regularEnrolment,
+    a.supernumeraryLimit,
+    a.supernumeraryEnrolment,
+    a.nriEnrolment,
+    a.foreignEnrolment,
+    `"${a.regularUtilizationPercent}%"`,
+    a.excessAdmissions,
+    `"${a.status}"`,
+  ]);
+  const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="eduverify_intake_compliance.csv"');
+  res.send(csv);
+});
+
+apiApp.get('/api/reports/duplicates/csv', (_req: Request, res: Response) => {
+  const alerts = db.getDuplicateAlerts();
+  const headers = [
+    'Alert ID',
+    'APAAR ID (Masked)',
+    'Student A',
+    'Institution A',
+    'Student B',
+    'Institution B',
+    'Similarity %',
+    'Reason',
+    'Status',
+    'Detected At',
+  ];
+  const rows = alerts.map((a) => [
+    `"${a.id}"`,
+    `"${maskApaarId(a.apaarId)}"`,
+    `"${a.studentNameA} (${a.studentIdA})"`,
+    `"${a.institutionNameA}"`,
+    `"${a.studentNameB} (${a.studentIdB})"`,
+    `"${a.institutionNameB}"`,
+    `"${a.similarityScore}%"`,
+    `"${(a.reason || '').replace(/"/g, '""')}"`,
+    `"${a.status}"`,
+    `"${a.detectedAt}"`,
+  ]);
+  const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="eduverify_duplicates_report.csv"');
+  res.send(csv);
+});
+
 apiApp.get('/api/audit', (_req: Request, res: Response) => {
   const logs = db.getAuditLogs();
   res.json({ success: true, logs });
@@ -779,4 +1039,18 @@ apiApp.patch('/api/notifications/:id/read', (req: Request, res: Response) => {
 apiApp.post('/api/system/reset', (_req: Request, res: Response) => {
   db.resetToDefault();
   res.json({ success: true, message: 'Database reset to default synthetic Indian education state.' });
+});
+
+// Generic 404 for unmatched API routes
+apiApp.use('/api', (_req: Request, res: Response) => {
+  res.status(404).json({ success: false, message: 'API route not found' });
+});
+
+// Centralized error handler for all unhandled server exceptions
+apiApp.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('[API ERROR]', err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal server error occurred in EduVerify platform',
+  });
 });

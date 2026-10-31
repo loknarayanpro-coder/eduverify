@@ -128,7 +128,14 @@ class ApiService {
     return res.json();
   }
 
-  // --- APAAR VALIDATION ---
+  // --- PROGRAMMES ---
+  async getProgrammes(institutionId?: string): Promise<{ success: boolean; total: number; programmes: any[] }> {
+    const query = institutionId ? `?institutionId=${institutionId}` : '';
+    const res = await fetch(`${API_BASE}/programmes${query}`);
+    return res.json();
+  }
+
+  // --- APAAR VALIDATION & GENERATION ---
   async validateApaar(apaarId: string): Promise<{ success: boolean; result: any }> {
     const res = await fetch(`${API_BASE}/apaar/validate`, {
       method: 'POST',
@@ -138,9 +145,27 @@ class ApiService {
     return res.json();
   }
 
+  async generateSampleApaar(seed?: string): Promise<{ success: boolean; apaarId: string; result: any }> {
+    const res = await fetch(`${API_BASE}/apaar/generate-sample`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ seed }),
+    });
+    return res.json();
+  }
+
   // --- DUPLICATES ---
   async getDuplicates(): Promise<{ success: boolean; total: number; alerts: DuplicateAlert[] }> {
     const res = await fetch(`${API_BASE}/duplicates`);
+    return res.json();
+  }
+
+  async scanDuplicate(candidate: Partial<Student>): Promise<{ success: boolean; scan: any }> {
+    const res = await fetch(`${API_BASE}/duplicates/scan`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(candidate),
+    });
     return res.json();
   }
 
@@ -214,6 +239,15 @@ class ApiService {
       headers: this.getHeaders(),
     });
     return res.json();
+  }
+
+  async getHealth(): Promise<{ success: boolean; status: string; database: any }> {
+    const res = await fetch(`${API_BASE}/health`);
+    return res.json();
+  }
+
+  getReportDownloadUrl(type: 'students' | 'intake' | 'duplicates'): string {
+    return `${API_BASE}/reports/${type}/csv`;
   }
 
   async resetDatabase(): Promise<{ success: boolean; message: string }> {
