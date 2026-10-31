@@ -115,6 +115,15 @@ export const VerifierDashboard: React.FC = () => {
                 >
                   ANNA-2024-ECE-012
                 </button>
+                <span>·</span>
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('tok_sig_a8f9c2e1b40d7e63f912c4')}
+                  className="underline hover:text-sky-900 font-mono"
+                  title="Signed HMAC Credential Token"
+                >
+                  Signed Token
+                </button>
               </div>
             </div>
 

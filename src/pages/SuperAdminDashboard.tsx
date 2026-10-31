@@ -98,33 +98,13 @@ export const SuperAdminDashboard: React.FC = () => {
     }
   };
 
-  // Export report to CSV
+  // Export report to CSV using server-generated RFC-4180 endpoint
   const handleExportCSV = (type: string) => {
-    let csvContent = '';
-    let filename = `eduverify_${type}_report.csv`;
-
-    if (type === 'students') {
-      csvContent = 'Student ID,Full Name,APAAR ID,Institution,Programme,Academic Year,Quota,Category,Status\n';
-      students.forEach((s) => {
-        csvContent += `"${s.studentId}","${s.fullName}","${s.apaarId}","${s.institutionName}","${s.programmeName}","${s.academicYear}","${s.quotaType}","${s.category}","${s.apaarStatus}"\n`;
-      });
-    } else if (type === 'institutions') {
-      csvContent = 'AISHE Code,Approval ID,Name,State,Approved Intake,Current Enrolment,Excess Admissions,Status\n';
-      institutions.forEach((i) => {
-        csvContent += `"${i.aisheCode}","${i.aicteApprovalId}","${i.name}","${i.state}",${i.approvedIntake},${i.currentEnrolment},${i.analysis?.excessAdmissions || 0},"${i.approvalStatus}"\n`;
-      });
-    } else if (type === 'duplicates') {
-      csvContent = 'Alert ID,APAAR ID,Student A,College A,Student B,College B,Similarity Score,Status,Reason\n';
-      duplicates.forEach((d) => {
-        csvContent += `"${d.id}","${d.apaarId}","${d.studentNameA}","${d.institutionNameA}","${d.studentNameB}","${d.institutionNameB}",${d.similarityScore},"${d.status}","${d.reason}"\n`;
-      });
-    }
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    const reportType = type === 'institutions' ? 'intake' : type;
+    const downloadUrl = api.getReportDownloadUrl(reportType as any);
     const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
+    link.href = downloadUrl;
+    link.setAttribute('download', `eduverify_${reportType}_report.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -102,7 +102,7 @@ class ApiService {
     return res.json();
   }
 
-  async createStudent(student: Partial<Student>): Promise<{ success: boolean; student: Student; credential?: VerificationCredential; duplicateAlert?: DuplicateAlert }> {
+  async createStudent(student: Partial<Student>): Promise<{ success: boolean; student: Student; credential?: VerificationCredential; duplicateAlert?: DuplicateAlert; message?: string }> {
     const res = await fetch(`${API_BASE}/students`, {
       method: 'POST',
       headers: this.getHeaders(),

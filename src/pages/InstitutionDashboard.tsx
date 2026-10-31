@@ -109,6 +109,18 @@ export const InstitutionDashboard: React.FC<InstitutionDashboardProps> = ({
     }
   };
 
+  const handleGenerateSandboxApaar = async () => {
+    try {
+      const res = await api.generateSampleApaar();
+      if (res.success && res.apaarId) {
+        setFormData((prev) => ({ ...prev, apaarId: res.apaarId }));
+        setApaarValidationPreview(res.result);
+      }
+    } catch (err) {
+      console.error('Failed to generate sample APAAR:', err);
+    }
+  };
+
   // Submit Add Student Form
   const handleAddStudentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,7 +161,7 @@ export const InstitutionDashboard: React.FC<InstitutionDashboardProps> = ({
         setApaarValidationPreview(null);
         loadData();
       } else {
-        setFormError('Failed to create student record.');
+        setFormError(res.message || 'Failed to create student record.');
       }
     } catch (err: any) {
       setFormError(err.message || 'Submission error');
@@ -476,13 +488,22 @@ export const InstitutionDashboard: React.FC<InstitutionDashboardProps> = ({
 
               {/* APAAR ID with Real-Time Validation Box */}
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  12-Digit APAAR ID (Automated Permanent Academic Account Registry)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-semibold text-slate-700">
+                    12-Digit APAAR ID (Automated Permanent Academic Account Registry)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateSandboxApaar}
+                    className="text-[11px] font-semibold text-sky-800 hover:text-sky-950 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-0.5 rounded transition-colors"
+                  >
+                    🎲 Generate Valid Sandbox APAAR
+                  </button>
+                </div>
                 <div className="relative">
                   <input
                     type="text"
-                    maxLength={12}
+                    maxLength={14}
                     placeholder="Enter 12-digit number (e.g. 984321098451)"
                     value={formData.apaarId}
                     onChange={(e) => handleApaarChange(e.target.value)}
