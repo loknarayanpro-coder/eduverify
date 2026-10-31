@@ -56,9 +56,11 @@ export const PrintableCertificate: React.FC<PrintableCertificateProps> = ({
           {/* Official Header */}
           <div className="border-b-2 border-slate-800 pb-6 mb-8 text-center relative">
             <div className="flex items-center justify-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-full bg-sky-900 text-white flex items-center justify-center font-bold text-sm">
-                GOI
-              </div>
+              <img
+                src="/logo.png"
+                alt="EduVerify AICTE Logo"
+                className="w-12 h-12 object-contain"
+              />
               <div className="text-left">
                 <p className="text-[11px] font-bold tracking-wider text-slate-600 uppercase">
                   All India Council for Technical Education (AICTE)

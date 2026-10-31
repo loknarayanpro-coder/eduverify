@@ -111,11 +111,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={() => onNavigate('landing')}
-            className="flex items-center gap-2.5 text-left focus:outline-none"
+            className="flex items-center gap-3 text-left focus:outline-none"
           >
-            <div className="w-9 h-9 rounded-lg bg-sky-900 flex items-center justify-center text-white font-black text-lg shadow-sm">
-              EV
-            </div>
+            <img
+              src="/logo.png"
+              alt="EduVerify National Logo"
+              className="w-10 h-10 object-contain drop-shadow-sm rounded"
+            />
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xl font-extrabold tracking-tight text-slate-900 block leading-none">

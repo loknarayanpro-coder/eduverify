@@ -63,6 +63,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none"></div>
 
         <div className="max-w-5xl mx-auto text-center relative z-10 space-y-6">
+          <div className="flex justify-center">
+            <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md border border-white/20 shadow-2xl inline-block">
+              <img
+                src="/logo.png"
+                alt="EduVerify Official Emblem Logo"
+                className="w-20 h-20 sm:w-24 sm:h-24 object-contain drop-shadow"
+              />
+            </div>
+          </div>
+
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-800/80 border border-sky-700/60 text-xs font-semibold text-teal-300">
             <ShieldCheck className="w-4 h-4 text-teal-300" />
             <span>AICTE National Student Registry & Compliance Framework</span>

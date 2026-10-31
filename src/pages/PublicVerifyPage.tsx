@@ -66,9 +66,11 @@ export const PublicVerifyPage: React.FC<PublicVerifyPageProps> = ({
 
         {/* Verification Search Header */}
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center space-y-3">
-          <div className="w-12 h-12 rounded-full bg-sky-100 text-sky-900 mx-auto flex items-center justify-center font-bold text-lg">
-            EV
-          </div>
+          <img
+            src="/logo.png"
+            alt="EduVerify National Logo"
+            className="w-16 h-16 object-contain mx-auto drop-shadow-sm"
+          />
           <h1 className="text-xl font-extrabold text-slate-900">National Academic Credential Verification</h1>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
             Scan or enter the verification token to confirm enrollment authenticity directly against the AICTE Central Student Registry.

@@ -8,10 +8,12 @@ export const Footer: React.FC<{ onNavigate: (view: string) => void }> = ({ onNav
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Brand & Purpose */}
           <div className="md:col-span-1 space-y-3">
-            <div className="flex items-center gap-2 text-white font-bold text-base">
-              <div className="w-6 h-6 rounded bg-sky-800 flex items-center justify-center text-xs">
-                EV
-              </div>
+            <div className="flex items-center gap-2.5 text-white font-bold text-base">
+              <img
+                src="/logo.png"
+                alt="EduVerify Logo"
+                className="w-7 h-7 object-contain rounded bg-white p-0.5"
+              />
               <span>EduVerify</span>
             </div>
             <p className="text-slate-400 text-xs leading-relaxed">
