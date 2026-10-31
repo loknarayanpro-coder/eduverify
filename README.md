@@ -78,3 +78,11 @@ The platform centralizes student academic identities using **APAAR (Automated Pe
 - **Automated Permanent Academic Account Registry (APAAR)**: National 12-digit lifelong student ID under the Ministry of Education.
 - **Academic Bank of Credits (ABC)** & National Higher Education Qualification Framework (NHEQF).
 - **DPDP Act 2023**: Zero raw personal data (unmasked APAAR, phone numbers, addresses) leaked into 2D barcodes.
+
+---
+
+## ⚖️ Copyright & Author
+
+**Copyright © 2026 EduVerify. All rights reserved.**  
+Designed, developed, and engineered by **Lok** ([@loknarayanpro-coder](https://github.com/loknarayanpro-coder)).
+

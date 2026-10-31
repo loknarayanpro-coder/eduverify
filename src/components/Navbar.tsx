@@ -91,6 +91,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span>Government of India · Ministry of Education · AICTE Digital Infrastructure</span>
         </div>
         <div className="flex items-center gap-3">
+          <span className="hidden sm:inline text-slate-400">Developed by <strong className="text-sky-300 font-semibold">Lok</strong></span>
+          <span className="hidden sm:inline text-slate-600">·</span>
           <span className="hidden sm:inline">APAAR Verhoeff Checksum Engine Active</span>
           <button
             onClick={onResetData}
@@ -115,9 +117,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               EV
             </div>
             <div>
-              <span className="text-xl font-extrabold tracking-tight text-slate-900 block leading-none">
-                EduVerify
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xl font-extrabold tracking-tight text-slate-900 block leading-none">
+                  EduVerify
+                </span>
+                <span className="text-[10px] font-semibold text-sky-800 bg-sky-100 px-1.5 py-0.5 rounded border border-sky-200">
+                  by Lok
+                </span>
+              </div>
               <span className="text-[10px] tracking-wider text-slate-500 font-semibold uppercase block mt-0.5">
                 APAAR National Registry
               </span>

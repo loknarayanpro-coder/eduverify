@@ -83,15 +83,22 @@ export const Footer: React.FC<{ onNavigate: (view: string) => void }> = ({ onNav
           </div>
         </div>
 
-        {/* Bottom Disclaimers */}
+        {/* Bottom Disclaimers & Copyright */}
         <div className="pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
-          <p>© 2026 EduVerify · AICTE National Student Data Registry · Developed for National Higher Education Infrastructure.</p>
-          <div className="flex items-center gap-4">
+          <div className="space-y-1 text-center sm:text-left">
+            <p className="text-slate-400 font-medium">
+              Copyright © 2026 EduVerify by <span className="text-sky-400 font-semibold">Lok</span>. All Rights Reserved.
+            </p>
+            <p className="text-slate-500 text-[10px]">
+              AICTE National Student Data Registry · Developed & Engineered by <span className="text-teal-400 font-medium">Lok</span>.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 text-slate-400">
             <span>Privacy & Consent Safeguards</span>
             <span>·</span>
             <span>Security Invariants</span>
             <span>·</span>
-            <span>Synthetic Demo Mode</span>
+            <span>DPDP Act Compliant</span>
           </div>
         </div>
       </div>
